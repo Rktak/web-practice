@@ -34,7 +34,8 @@ app.use((error, req, res, next) => {
   res.json({message: error.message || 'Unknown error occured' , code: error.code });
 });
 
-mongoose.connect('mongodb+srv://rounakkumar:RounakKumar@mernstackcluster.p3hta.mongodb.net/myFirstDatabase?retryWrites=true&w=majority',
+//database is not conected
+mongoose.connect('<enter your database connection>',
   {
     useUnifiedTopology: true,
     useNewUrlParser: true
