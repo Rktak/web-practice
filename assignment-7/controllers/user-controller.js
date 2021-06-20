@@ -1,16 +1,15 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-
+const BlogPost = require("../models/blog");
 const User = require("../models/user");
 
 const HttpError = require("../utils/http-error");
-const Blog= require("../models/blog");
 
 const userSignup = async (req, res, next) => {
-  // console.log(req.body);
-  const { name, age, email, password } = req.body;
-  // Existing user
+  const { firstname, lastname, email, password, dob} = req.body;
+
+
   let existingUser;
   try {
     existingUser = await User.findOne({
@@ -35,10 +34,11 @@ const userSignup = async (req, res, next) => {
   }
   // User Create
   const createdUser = new User({
-    name: name,
+    firstname: firstname,
+    lastname: lastname,
     password: hashedPasswaord,
     email: email,
-    age: age || 0,
+    dob: dob,
     role: 'User'
   });
 
@@ -55,12 +55,11 @@ const userSignup = async (req, res, next) => {
   try {
     token = jwt.sign(
       {
-        userId: existingUser.id,
-        email: existingUser.email,
-        age: existingUser.age
+        userId: createdUser.id,
+        email: createdUser.email,
       },
       "userSecretKey",
-      { expiresIn: "2h" }
+      { expiresIn: "3h" }
     );
 
     // console.log(token);
@@ -71,19 +70,16 @@ const userSignup = async (req, res, next) => {
 
   return res.json({userId: createdUser.id, email: createdUser.email, token: token});
 
-
-
 };
-
 const userLogin = async (req, res, next) => {
   const { email, password } = req.body;
 
-  let existingUser;
+  //let existingUser;
+  var existingUser;
   try {
     existingUser = await User.findOne({
       email: email,
     });
-    // console.log(existingUser);
   } catch (err) {
     const error = new HttpError("Login failed, Please try later", 500);
     return next(error);
@@ -93,7 +89,6 @@ const userLogin = async (req, res, next) => {
     const error = new HttpError("Invalid Credentials, Please try later", 403);
     return next(error);
   }
-
 
 
   let isValidPassword = false;
@@ -118,10 +113,9 @@ const userLogin = async (req, res, next) => {
       {
         userId: existingUser.id,
         email: existingUser.email,
-        age: existingUser.age
       },
       "userSecretKey",
-      { expiresIn: "2h" }
+      { expiresIn: "3h" }
     );
 
     // console.log(token);
@@ -137,123 +131,73 @@ const userLogin = async (req, res, next) => {
   });
 };
 
-const postBlog = async (req, res, next) => {
-
-  const { email, password, heading, blog } = req.body;
-
-  let existingUser
+const userGetInfo = async(req, res, next) => {
+  const {email} = req.body;
+  let existingUser;
   try {
-    existingUser = await User.findOne({ email: email },);
-  }
-  catch (err) {
-    const error = new HttpError("login failed", 500)
+    existingUser = await User.findOne({
+      email: email,
+    });
+  } catch (err) {
+    console.log(err);
+    const error = new HttpError("no user found", 500);
     return next(error);
   }
 
-  if (!existingUser) {
-    const error = new HttpError("User does not exists", 403)
-    return next(error);
-  }
+    if(existingUser){
+      res.json({
+        firstName: existingUser.firstName,
+        lastName: existingUser.lastName,
+        dob: existingUser.dob,
+        password: existingUser.password,
+        role: existingUser.role
+      })
+    }
+};
 
-  let isValidPassword = false;
-
-  try {
-    isValidPassword = await bcrypt.compare(password, existingUser.password);
-  } catch {
-    const error = new HttpError("login failed", 403);
-    return next(error);
-  }
-  if (!isValidPassword) {
-    const error = new HttpError("invalid credentials", 403);
-    return next(error);
-  }
-
-  const createdBlog = new Blog({
-    email: email,
-    password: password,
-    heading: heading,
-    blog: blog,
+const createPost = async (req, res, next) => {
+  const { fName,blogheading, blogpost, bloguserID} = req.body;
+  const newBlog = new BlogPost({
+    heading: blogheading,
+    blog: blogpost,
+    userID: bloguserID
   });
 
   try {
-    await createdBlog.save();
+    await newBlog.save();
   } catch (err) {
     console.log(err);
-    const error = new HttpError('Blog posting failed', 500);
+    const error = new HttpError("blog uploading failed", 500);
     return next(error);
   }
-
-  return res.status(200).json(
-    {
-      'message': "Blog posted. "
-    }
-  )
-};
-
-const getBlog = async (req, res, next) => {
-
-  const { email, password, heading } = req.body;
-
-  let existingUser
-
-  try {
-    existingUser = await User.findOne({ email: email },);
-  }
-  catch (err) {
-    const error = new HttpError("login failed", 500)
-    return next(error);
-  }
-
-  if (!existingUser) {
-    const error = new HttpError("invalid user credentials", 403)
-    return next(error);
-  }
-
-  let isValidPassword = false;
-
-  try {
-    isValidPassword = await bcrypt.compare(password, existingUser.password);
-  } catch {
-    const error = new HttpError("login failed", 403);
-    return next(error);
-  }
-
-  if (!isValidPassword) {
-    const error = new HttpError("invalid credentials", 403);
-    return next(error);
-  }
-
-  if (!heading) {
-    const error = new HttpError("Heading doesn't exists!!", 403);
-    return next(error);
-  }
-  try {
-    token = jwt.sign(
-      {
-        userId: existingUser.id,
-        firstName: existingUser.firstName,
-        email: existingUser.email,
-        heading: existingUser.heading
-      },
-      "userSecretKey",
-      { expiresIn: "1h" }
-    );
-  } catch (err) {
-    console.log(err);
-    const error = new HttpError("invalid credentials", 500);
-    return next(error);
-  }
-  res.json({
-    'first-name': existingUser.firstName,
-    'email': existingUser.email,
-    'User-id': existingUser.id,
-    'heading': existingUser.heading,
-    'blog': existingUser.blog
-
+  return res.json({
+    "message": `Post created by user ${fName}`
   });
 }
 
+const getBlog = async(req, res, next) => {
+  const {bloguserID} = req.body;
+  let existingBlog;
+  try {
+    existingBlog = await BlogPost.findOne({
+      userID: bloguserID ,
+    });
+  } catch (err) {
+    console.log(err);
+    const error = new HttpError("no Blog found", 500);
+    return next(error);
+  }
+
+    if(existingBlog){
+      res.json({
+        heading: existingBlog.heading,
+        blog: existingBlog.blog,
+      })
+    }
+};
+
 exports.userSignup = userSignup;
 exports.userLogin = userLogin;
+exports.userInfo = userGetInfo;
+exports.createPost = createPost;
 exports.getBlog = getBlog;
-exports.postBlog= postBlog;
